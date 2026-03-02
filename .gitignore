@@ -13,14 +13,6 @@ __pycache__/
 # conda
 *.conda
 
-# data
-data/
-
-# chunks (可以选择是否上传)
-chunks/
-
-# vector db
-vector_db/
 
 # OS
 .DS_Store
