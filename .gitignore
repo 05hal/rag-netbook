@@ -1,0 +1,27 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+
+# jupyter
+.ipynb_checkpoints/
+
+# env
+.env
+*.env
+
+# conda
+*.conda
+
+# data
+data/
+
+# chunks (可以选择是否上传)
+chunks/
+
+# vector db
+vector_db/
+
+# OS
+.DS_Store
+Thumbs.db
