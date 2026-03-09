@@ -1,0 +1,29 @@
+{
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "pages/index/index",
+          "pathName": "pages/index/index",
+          "query": "chapter=5",
+          "scene": null,
+          "launchMode": "default"
+        },
+        {
+          "name": "第二章测试",
+          "pathName": "pages/index/index",
+          "query": "chapter=2",
+          "launchMode": "default",
+          "scene": null
+        },
+        {
+          "name": "pages/index/index",
+          "pathName": "pages/index/index",
+          "query": "chapter=2",
+          "launchMode": "default",
+          "scene": null
+        }
+      ]
+    }
+  }
+}

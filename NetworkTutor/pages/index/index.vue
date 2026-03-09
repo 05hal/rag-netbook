@@ -7,9 +7,24 @@
 			scroll-with-animation
 		>
 			<view v-for="(item, index) in chatList" :key="index" :id="'msg-' + index" :class="['msg-item', item.role]">
-				<view class="bubble">
-					<text @longpress="copyText(item.content)">{{ item.content }}</text>
-				</view>
+			    <view class="bubble">
+			        <view v-if="item.role === 'ai' && item.think" class="think-container">
+			            <view class="think-title" @click="item.showThink = !item.showThink">
+			                <text class="icon">{{ item.showThink ? '▼' : '▶' }}</text> 
+			                已深度思考（点击{{ item.showThink ? '收起' : '展开' }}）
+			            </view>
+			            <view v-if="item.showThink" class="think-content">{{ item.think }}</view>
+			        </view>
+			
+			        <text class="main-content" @longpress="copyText(item.content)">{{ item.content }}</text>
+			
+			        <view v-if="item.role === 'ai' && item.sources && item.sources.length > 0" class="sources-container">
+			            <view class="source-header">参考来源：</view>
+			            <view v-for="(src, sIndex) in item.sources" :key="sIndex" class="source-item">
+			                [{{ sIndex + 1 }}] 第{{ src.chapter }}章：{{ src.path }}
+			            </view>
+			        </view>
+			    </view>
 			</view>
 			
 			<view v-if="isTyping" class="msg-item ai" id="msg-typing">
@@ -50,7 +65,9 @@ export default {
 			isTyping: false,
 			chatList: [{ role: 'ai', content: '你好！我是计网助教。你可以扫描教材二维码进入指定章节，或者直接提问。' }],
 			chapterId: null,
-			lastMsgId: ''
+			lastMsgId: '',
+			showSourceModal: false, // 控制弹窗显示
+			sourceDetail: ''// 存储点击的原文内容
 		}
 	},
 	onLoad(options) {
@@ -85,24 +102,56 @@ export default {
 
 			// --- 2. 核心：请求你的 FastAPI 后端 ---
 			// 注意：真机调试需将 127.0.0.1 换成你电脑的局域网 IP (如 192.168.1.5)
-			const BACKEND_URL = 'http://10.60.145.177:8000/chat'; 
+			const BACKEND_URL = 'http://10.60.145.177:8000/api/rag/ask';
 
 			uni.request({
 				url: BACKEND_URL,
 				method: 'POST',
 				header: { 'Content-Type': 'application/json' },
 				data: {
-					content: q,
-					chapter_id: this.chapterId
-				},
+				                // 1. 匹配后端字段名：question
+				                question: q,
+				                // 2. 匹配后端字段名：chapter。如果没有扫码则传 "all"，否则转为字符串
+				                chapter: this.chapterId ? String(this.chapterId) : "all",
+				                // 3. 增加 top_k 参数，控制检索精度
+				                top_k: 4 
+				            },
 				success: (res) => {
-					this.isTyping = false;
-					if (res.data && res.data.reply) {
-						this.chatList.push({ role: 'ai', content: res.data.reply });
-					} else {
-						this.chatList.push({ role: 'ai', content: '助教由于网络原因暂时无法回答。' });
-					}
-					this.scrollToBottom();
+				    this.isTyping = false;
+				    if (res.data && res.data.answer) {
+				        let raw = String(res.data.answer);
+				        let thinkPart = "";
+				        let finalContent = raw;
+				
+				        const lowerRaw = raw.toLowerCase();
+				        const startTag = "<think>";
+				        const endTag = "</think>";
+				
+				        const startIdx = lowerRaw.indexOf(startTag);
+				        const endIdx = lowerRaw.indexOf(endTag);
+				
+				        if (endIdx !== -1) {
+				            // --- 核心逻辑：只要有结尾标签，就进行切分 ---
+				            if (startIdx !== -1) {
+				                // 正常的完整情况
+				                thinkPart = raw.substring(startIdx + startTag.length, endIdx).trim();
+				            } else {
+				                // 只有结尾的情况：从开头一直截取到结尾标签之前
+				                thinkPart = raw.substring(0, endIdx).trim();
+				            }
+				            // 正文始终是结尾标签之后的内容
+				            finalContent = raw.substring(endIdx + endTag.length).trim();
+				        }
+				
+				        this.chatList.push({
+				            role: 'ai',
+				            think: thinkPart,
+				            showThink: false,
+				            content: finalContent || "回答生成完毕。",
+				            sources: res.data.sources || []
+				        });
+				    }
+				    this.scrollToBottom();
 				},
 				fail: (err) => {
 					this.isTyping = false;
@@ -131,6 +180,34 @@ export default {
 </script>
 
 <style>
+/* 思考块样式 */
+.think-container {
+    background: #f0f0f0;
+    border-radius: 8rpx;
+    padding: 12rpx;
+    margin-bottom: 15rpx;
+    font-size: 24rpx;
+    color: #666;
+    border-left: 6rpx solid #ccc;
+}
+.think-title { font-weight: bold; margin-bottom: 8rpx; display: flex; align-items: center; }
+.think-content { line-height: 1.4; border-top: 1rpx solid #ddd; padding-top: 8rpx; }
+
+/* 来源块样式 */
+.sources-container {
+    margin-top: 20rpx;
+    padding-top: 15rpx;
+    border-top: 1rpx dashed #eee;
+}
+.source-header { font-size: 22rpx; color: #999; margin-bottom: 6rpx; }
+.source-item {
+    font-size: 22rpx;
+    color: #0288d1;
+    margin-bottom: 4rpx;
+    display: block;
+    word-break: break-all;
+}
+.main-content { font-size: 30rpx; white-space: pre-wrap; }
 .container { display: flex; flex-direction: column; height: 100vh; background: #f7f7f7; }
 .chat-box { flex: 1; padding: 20rpx 40rpx; overflow: hidden; }
 .msg-item { display: flex; margin-bottom: 30rpx; transition: all 0.3s; }
